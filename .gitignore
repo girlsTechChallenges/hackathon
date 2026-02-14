@@ -1,0 +1,186 @@
+# Health Tech Platform - .gitignore
+
+# ============================================
+# Arquivos Sensíveis
+# ============================================
+
+# OpenAI API Keys
+**/open_ai_api.env
+**/*.env
+!**/.env.example
+
+# ============================================
+# Maven
+# ============================================
+
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ============================================
+# Java
+# ============================================
+
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+
+# ============================================
+# IDEs
+# ============================================
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.settings/
+.project
+.classpath
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# ============================================
+# OS Files
+# ============================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================
+# Docker
+# ============================================
+
+# Volumes locais (se houver)
+volumes/
+data/
+
+# ============================================
+# Logs
+# ============================================
+
+*.log
+logs/
+*.log.*
+*.out
+*.err
+
+# ============================================
+# Spring Boot
+# ============================================
+
+spring-boot-*.log
+*.pid
+
+# ============================================
+# Test Coverage
+# ============================================
+
+*.exec
+.sonar/
+coverage/
+jacoco/
+*.lcov
+
+# ============================================
+# Temporários
+# ============================================
+
+*.tmp
+*.temp
+*.cache
+.cache/
+
+# ============================================
+# Node (se houver frontend)
+# ============================================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# ============================================
+# Outros
+# ============================================
+
+.gradle/
+.sass-cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*$py.class

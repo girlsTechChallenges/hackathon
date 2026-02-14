@@ -1,0 +1,267 @@
+version: '3.8'
+
+# Docker Compose Unificado - Health Tech Platform
+# Sobe os 3 projetos: user-health-bff, check-health e brain-health
+
+services:
+  # ============================================================
+  # USER HEALTH BFF - Gerenciamento de Usuários com JWT
+  # ============================================================
+  
+  user-health-db:
+    image: postgres:16-alpine
+    container_name: user-health-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - user-health-postgres-data:/var/lib/postgresql/data
+    networks:
+      - health-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-health-bff:
+    build:
+      context: ./user-health-bff
+      dockerfile: Dockerfile
+    container_name: user-health-bff
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-health-db:5432/postgres
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_APPLICATION_NAME: user-health-bff
+    depends_on:
+      user-health-db:
+        condition: service_healthy
+    networks:
+      - health-platform-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================
+  # CHECK HEALTH - Metas de Saúde Gamificadas
+  # ============================================================
+  
+  check-health-db:
+    image: postgres:15-alpine
+    container_name: check-health-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: checkhealth
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+    ports:
+      - "5433:5432"  # Porta externa 5433 para evitar conflito
+    volumes:
+      - check-health-postgres-data:/var/lib/postgresql/data
+    networks:
+      - health-platform-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d checkhealth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  check-health-app:
+    build:
+      context: ./check-health
+      dockerfile: Dockerfile
+    container_name: check-health-app
+    restart: unless-stopped
+    ports:
+      - "8081:8080"  # Porta externa 8081 para evitar conflito com user-health-bff
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://check-health-db:5432/checkhealth
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_APPLICATION_NAME: check-health
+    depends_on:
+      check-health-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - health-platform-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================
+  # BRAIN HEALTH - Geração de Conteúdo Médico com IA
+  # ============================================================
+  
+  brain-health-app:
+    build:
+      context: ./brain-health
+      dockerfile: Dockerfile
+    container_name: brain-health-app
+    restart: unless-stopped
+    ports:
+      - "9090:8080"
+    env_file:
+      - ./brain-health/open_ai_api.env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_CONSUMER_GROUP_ID: brain-health-consumer-group
+      SPRING_APPLICATION_NAME: brain-health
+    depends_on:
+      - kafka
+    networks:
+      - health-platform-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================
+  # KAFKA CLUSTER - Mensageria Compartilhada
+  # ============================================================
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    container_name: zookeeper
+    restart: unless-stopped
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - health-platform-network
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - health-platform-network
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # ============================================================
+  # KAFKA UIs - Interfaces de Gerenciamento
+  # ============================================================
+  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8085:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: health-platform
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - health-platform-network
+
+  kafdrop:
+    image: obsidiandynamics/kafdrop:latest
+    container_name: kafdrop
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: kafka:29092
+      JVM_OPTS: "-Xms32M -Xmx64M"
+      SERVER_SERVLET_CONTEXTPATH: "/"
+    networks:
+      - health-platform-network
+
+  kafka-rest-proxy:
+    image: confluentinc/cp-kafka-rest:7.5.0
+    container_name: kafka-rest-proxy
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8082:8082"
+    hostname: kafka-rest-proxy
+    environment:
+      KAFKA_REST_HOST_NAME: kafka-rest-proxy
+      KAFKA_REST_BOOTSTRAP_SERVERS: 'kafka:29092'
+      KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
+    networks:
+      - health-platform-network
+
+# ============================================================
+# NETWORKS
+# ============================================================
+
+networks:
+  health-platform-network:
+    driver: bridge
+    name: health-platform-network
+
+# ============================================================
+# VOLUMES
+# ============================================================
+
+volumes:
+  user-health-postgres-data:
+    driver: local
+  check-health-postgres-data:
+    driver: local
+  kafka-data:
+    driver: local
+  zookeeper-data:
+    driver: local
+  zookeeper-logs:
+    driver: local
