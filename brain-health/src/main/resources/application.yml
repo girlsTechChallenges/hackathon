@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: brain-health
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.7
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:brain-health-consumer-group}
+    producer:
+      properties:
+        compression.type: none
+
+# Kafka Topics
+kafka:
+  topic:
+    consumer: goal.created
+    producer: goal.progress.updated
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  health:
+    kafka:
+      enabled: false
+
+# External Services Configuration
+external-services:
+  cremesp:
+    base-url: https://cremesp.org.br/pesquisar.php
+    max-content-length: 8000
+    timeout-seconds: 30

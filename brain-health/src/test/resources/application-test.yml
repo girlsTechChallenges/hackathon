@@ -1,0 +1,46 @@
+# Test Profile Configuration
+spring:
+  application:
+    name: brain-health-test
+
+  # Disable Kafka for unit tests
+  kafka:
+    bootstrap-servers: localhost:9092
+
+  # AI Mock Configuration
+  ai:
+    openai:
+      api-key: test-key
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.7
+
+# Kafka Topics (Test)
+kafka:
+  topic:
+    consumer: brain-health-request-test
+    producer: brain-health-response-test
+
+# Actuator (Disabled for tests)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  health:
+    kafka:
+      enabled: false
+
+# External Services (Mock)
+external-services:
+  cremesp:
+    base-url: http://localhost:8080/mock
+    max-content-length: 8000
+    timeout-seconds: 5
+
+# Logging (Less verbose for tests)
+logging:
+  level:
+    root: WARN
+    com.fiap.brain.health: INFO
