@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://app-db:5432/postgres
+    username: postgres
+    password: postgres
+
+# Logging em produção
+logging:
+  level:
+    root: INFO
+    com.fiap.user.health.bff: INFO
+    org.springframework.web: WARN
