@@ -1,0 +1,221 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # INFRAESTRUTURA COMPARTILHADA
+  # ============================================
+  
+  # PostgreSQL - Banco de dados compartilhado
+  postgres:
+    image: postgres:16-alpine
+    container_name: shared-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    labels:
+      - "connection=postgresql://postgres:postgres@localhost:5432/postgres"
+      - "description=PostgreSQL Database - Compartilhado entre as aplicações"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper - Gerenciador do Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: shared-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    labels:
+      - "url=localhost:2181"
+      - "description=Zookeeper - Gerenciador do Kafka"
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka - Message Broker compartilhado
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: shared-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    labels:
+      - "kafka.external.url=localhost:9092"
+      - "kafka.internal.url=kafka:9094"
+      - "description=Kafka Message Broker - Acesso externo: localhost:9092 | Acesso interno: kafka:9094"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka:9094
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9094
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # Kafka UI - Interface de gerenciamento
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: shared-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8090:8080"
+    labels:
+      - "url=http://localhost:8090"
+      - "description=Interface de gerenciamento do Kafka"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: health-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9094
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - health-network
+
+  # ============================================
+  # APLICAÇÕES
+  # ============================================
+
+  # User Health BFF - Backend for Frontend
+  user-health-bff:
+    build:
+      context: ./user-health-bff
+      dockerfile: Dockerfile
+    container_name: user-health-bff
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    labels:
+      - "url=http://localhost:8080"
+      - "health=http://localhost:8080/actuator/health"
+      - "description=Backend for Frontend - User Health"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_APPLICATION_NAME: user-health-bff
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Check Health - Serviço de verificação de saúde
+  check-health-app:
+    build:
+      context: ./check-health
+      dockerfile: Dockerfile
+    container_name: check-health-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    labels:
+      - "url=http://localhost:8081"
+      - "health=http://localhost:8081/actuator/health"
+      - "description=Serviço de verificação de saúde"
+    environment:
+      SERVER_PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "false"
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9094
+      SPRING_CLOUD_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_CONFIG_IMPORT_CHECK_ENABLED: "false"
+      EUREKA_CLIENT_ENABLED: "false"
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Brain Health - Serviço de análise com IA
+  brain-health-app:
+    build:
+      context: ./brain-health
+      dockerfile: Dockerfile
+    container_name: brain-health-app
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "9090:8080"
+    labels:
+      - "url=http://localhost:9090"
+      - "health=http://localhost:9090/actuator/health"
+      - "description=Serviço de análise com IA (OpenAI)"
+    env_file:
+      - ./brain-health/open_ai_api.env
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9094
+      KAFKA_CONSUMER_GROUP_ID: brain-health-consumer-group
+    networks:
+      - health-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  health-network:
+    driver: bridge
+    name: health-network
+
+volumes:
+  postgres_data:
+    driver: local

@@ -1,0 +1,19 @@
+{
+  "usuario_id": "user123",
+  "titulo": "Dormir 8 horas por noite",
+  "descricao": "Meta de qualidade do sono",
+  "categoria": "SONO",
+  "tipo": "diária",
+  "data_inicio": "2026-02-08",
+  "frequencia": {
+    "periodicidade": "diária",
+    "vezes_por_periodo": 1
+  },
+  "dificuldade": "fácil",
+  "recompensa": {
+    "pontos": 30,
+    "badge": "sleeper"
+  },
+  "status": "ativa",
+  "notificacoes": true
+}

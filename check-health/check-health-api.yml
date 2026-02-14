@@ -1,0 +1,247 @@
+openapi: 3.0.3
+info:
+  title: Gamified Goals API
+  description: Microservice for creating and tracking health goals with gamification.
+  version: 1.0.0
+
+servers:
+  - url: https://api.yourapp.com/v1
+
+paths:
+  /goals:
+    post:
+      summary: Create a new goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalRequest'
+      responses:
+        '201':
+          description: Goal created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalResponse'
+    get:
+      summary: List all goals
+      responses:
+        '200':
+          description: List of goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GoalResponse'
+
+  /goals/{goal_id}:
+    get:
+      summary: Get goal details
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Goal details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalResponse'
+        '404':
+          description: Goal not found
+
+    put:
+      summary: Update an existing goal
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoalRequest'
+      responses:
+        '200':
+          description: Goal updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalResponse'
+        '404':
+          description: Goal not found
+
+    delete:
+      summary: Delete a goal
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Goal deleted successfully
+        '404':
+          description: Goal not found
+
+  /goals/{goal_id}/progress:
+    patch:
+      summary: Update goal progress
+      description: Record partial achievements and update rewards.
+      parameters:
+        - name: goal_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProgressRequest'
+      responses:
+        '200':
+          description: Progress updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoalResponse'
+        '404':
+          description: Goal not found
+
+components:
+  schemas:
+    GoalRequest:
+      type: object
+      required:
+        - title 
+        - description 
+        - category 
+        - type 
+        - startDate 
+        - endDate 
+        - frequency 
+        - difficulty 
+        - reward 
+        - status 
+        - active
+      properties:
+        user_id:
+          type: string
+          example: "12345"
+        title:
+          type: string
+          example: "Walk 30 minutes daily"
+        description:
+          type: string
+          example: "Goal to increase daily physical activity"
+        category:
+          type: string
+          enum: [SAUDE_FISICA, SAUDE_MENTAL, NUTRICAO, SONO, BEM_ESTAR]
+        type:
+          type: string
+          enum: [daily, weekly, monthly, single]
+        start_date:
+          type: string
+          format: date
+          example: "2026-02-08"
+        end_date:
+          type: string
+          format: date
+          example: "2026-03-08"
+        frequency:
+          type: object
+          properties:
+            periodicity:
+              type: string
+              example: "daily"
+            times_per_period:
+              type: integer
+              example: 1
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        reward:
+          type: object
+          properties:
+            points:
+              type: integer
+              example: 50
+            badge:
+              type: string
+              example: "walker"
+        status:
+          type: string
+          enum: [active, completed, archived]
+        notifications:
+          type: boolean
+          example: true
+
+    GoalResponse:
+      type: object
+      properties:
+        goal_id:
+          type: string
+          example: "98765"
+        user_id:
+          type: string
+          example: "12345"
+        title:
+          type: string
+          example: "Walk 30 minutes daily"
+        status:
+          type: string
+          example: "active"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-02-08T12:22:00Z"
+        progress:
+          type: object
+          properties:
+            completed:
+              type: integer
+              example: 5
+            total:
+              type: integer
+              example: 30
+            unit:
+              type: string
+              example: "days"
+        gamification:
+          type: object
+          properties:
+            points_earned:
+              type: integer
+              example: 100
+            badge:
+              type: string
+              example: "walker"
+            user_level:
+              type: integer
+              example: 4
+        message:
+          type: string
+          example: "Progress updated! You completed 5 of 30 days and earned 50 points."
+
+    ProgressRequest:
+      type: object
+      required:
+        - increment
+      properties:
+        increment:
+          type: integer
+          example: 1
+        unit:
+          type: string
+          example: "days"

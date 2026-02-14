@@ -1,0 +1,20 @@
+{
+  "usuario_id": "user123",
+  "titulo": "Correr 30min diarios",
+  "descricao": "Meta de exercicio fisico",
+  "categoria": "SAUDE_FISICA",
+  "tipo": "diária",
+  "data_inicio": "2026-02-08",
+  "data_fim": "2026-03-08",
+  "frequencia": {
+    "periodicidade": "diária",
+    "vezes_por_periodo": 1
+  },
+  "dificuldade": "média",
+  "recompensa": {
+    "pontos": 50,
+    "badge": "runner"
+  },
+  "status": "ativa",
+  "notificacoes": true
+}
